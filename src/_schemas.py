@@ -138,6 +138,47 @@ class MetaculusFetchFrame(pa.DataFrameModel):
         coerce = True
 
 
+class DbnomicsFetchFrame(pa.DataFrameModel):
+    """Output of DbnomicsSource.fetch(). Per-observation rows from the DBnomics API."""
+
+    id: Series[str]
+    period: Series[str]
+    value: Series[object]  # float observation or the string "NA" for missing values
+    provider_name: Series[str]
+    dataset_name: Series[str]
+    series_name: Series[str]
+
+    class Config:
+        """Schema configuration."""
+
+        strict = False
+        coerce = True
+
+
+class KalshiFetchFrame(pa.DataFrameModel):
+    """Output of KalshiSource.fetch(). Market display and parent routing metadata."""
+
+    id: Series[str]
+    event_ticker: Series[str]
+    needs_yes_label: Series[bool]
+    series_ticker: Series[str]
+    settlement_sources: Series[object]
+
+    class Config:
+        """Schema configuration."""
+
+        strict = False
+        coerce = True
+
+
+class FredFetchFrame(QuestionFrame):
+    """Output of FredSource.fetch(). QuestionFrame plus transient fields for update()."""
+
+    fetch_datetime: Series[str]
+    probability: Series[object] = pa.Field(nullable=True)
+    resolutions: Series[object]  # list[dict] per row: [{id, date, value}, ...]
+
+
 class AcledResolutionFrame(pa.DataFrameModel):
     """ACLED-specific: aggregated events by country and date.
 

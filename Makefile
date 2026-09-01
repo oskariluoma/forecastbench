@@ -118,9 +118,9 @@ all: deploy
 
 deploy: orchestration questions metadata resolve leaderboards curate-questions website baselines
 
-questions: manifold metaculus acled infer yfinance polymarket wikipedia fred dbnomics
+questions: manifold metaculus acled infer kalshi yfinance polymarket wikipedia fred dbnomics
 
-orchestration: nightly-worker-job nightly-manager-job compress_buckets
+orchestration: nightly-worker-job nightly-manager-job compress_buckets push-datasets-to-git
 
 metadata: tag-questions validate-questions
 
@@ -170,6 +170,14 @@ acled-fetch:
 acled-update-questions:
 	$(MAKE) -C src/questions/acled/update_questions || echo "* $@" >> $(MAKE_FAILURE_LOG)
 
+kalshi: kalshi-fetch kalshi-update-questions
+
+kalshi-fetch:
+	$(MAKE) -C src/orchestration/func_kalshi_fetch || echo "* $@" >> $(MAKE_FAILURE_LOG)
+
+kalshi-update-questions:
+	$(MAKE) -C src/orchestration/func_kalshi_update || echo "* $@" >> $(MAKE_FAILURE_LOG)
+
 yfinance: yfinance-fetch yfinance-update-questions
 
 yfinance-fetch:
@@ -197,18 +205,18 @@ wikipedia-update-questions:
 fred: fred-fetch fred-update-questions
 
 fred-fetch:
-	$(MAKE) -C src/questions/fred/fetch || echo "* $@" >> $(MAKE_FAILURE_LOG)
+	$(MAKE) -C src/orchestration/func_fred_fetch || echo "* $@" >> $(MAKE_FAILURE_LOG)
 
 fred-update-questions:
-	$(MAKE) -C src/questions/fred/update_questions || echo "* $@" >> $(MAKE_FAILURE_LOG)
+	$(MAKE) -C src/orchestration/func_fred_update || echo "* $@" >> $(MAKE_FAILURE_LOG)
 
 dbnomics: dbnomics-fetch dbnomics-update-questions
 
 dbnomics-fetch:
-	$(MAKE) -C src/questions/dbnomics/fetch || echo "* $@" >> $(MAKE_FAILURE_LOG)
+	$(MAKE) -C src/orchestration/func_dbnomics_fetch || echo "* $@" >> $(MAKE_FAILURE_LOG)
 
 dbnomics-update-questions:
-	$(MAKE) -C src/questions/dbnomics/update_questions || echo "* $@" >> $(MAKE_FAILURE_LOG)
+	$(MAKE) -C src/orchestration/func_dbnomics_update || echo "* $@" >> $(MAKE_FAILURE_LOG)
 
 tag-questions:
 	$(MAKE) -C src/metadata/tag_questions || echo "* $@" >> $(MAKE_FAILURE_LOG)
@@ -239,6 +247,9 @@ nightly-worker-job:
 
 nightly-manager-job:
 	$(MAKE) -C src/nightly_update_workflow/manager || echo "* $@" >> $(MAKE_FAILURE_LOG)
+
+push-datasets-to-git:
+	$(MAKE) -C src/orchestration/func_push_datasets_to_git || echo "* $@" >> $(MAKE_FAILURE_LOG)
 
 llm-forecaster: llm-forecaster-manager llm-forecaster-worker
 

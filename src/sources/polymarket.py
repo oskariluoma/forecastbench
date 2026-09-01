@@ -29,10 +29,15 @@ _GAMMA_API_URL = "https://gamma-api.polymarket.com/markets/keyset"
 _CLOB_API_URL = "https://clob.polymarket.com/prices-history"
 _MIN_MARKET_LIQUIDITY = 25000
 _REQUEST_TIMEOUT_SECONDS = 30
+# Values a resolved market may legitimately end on: settled No, settled Yes, or a 50-50 for a
+# genuinely ambiguous outcome. Anything else is a market price left behind by a premature resolve.
+_VALID_RESOLUTION_VALUES = frozenset({0.0, 1.0, 0.5})
 
-# Set CHECK_AND_FIX_RESOLVED_DATA=1 to re-fetch resolved questions whose resolution files are
-# missing or have non-contiguous dates. This needs every resolved file downloaded, so it's costly
-# and off by default (matches the legacy job behaviour).
+# Resolved questions that did not end on a resolution value are always re-fetched, because that
+# is the only way a prematurely-resolved question ever gets its real value.
+#
+# Set CHECK_AND_FIX_RESOLVED_DATA=1 to additionally re-fetch resolved questions whose resolution
+# files are missing or have non-contiguous dates (matches the legacy job behaviour).
 
 
 class ConditionIdMarketNotFoundError(ValueError):
@@ -98,6 +103,12 @@ class PolymarketSource(MarketSource):
         if dfq is not None and not dfq.empty:
             resolved_ids = set(dfq.loc[dfq["resolved"], "id"])
             unresolved_ids = set(dfq.loc[~dfq["resolved"], "id"])
+
+        # Always re-fetch resolved questions whose frozen value is not a resolution value. Gamma
+        # can report a market as resolved while `outcomePrices` still holds the last traded price,
+        # leaving a CLOB tick where the resolution should be. `dfq` is already in memory, so this
+        # costs nothing and catches the case even when the resolution file is missing.
+        unresolved_ids.update(self.get_resolved_ids_with_suspect_value(dfq))
 
         # Optional, costly: re-fetch resolved questions whose resolution files are missing or have
         # non-contiguous dates. Off by default. Mirrors the legacy CHECK_AND_FIX_RESOLVED_DATA path.
@@ -409,6 +420,37 @@ class PolymarketSource(MarketSource):
     # ------------------------------------------------------------------
 
     @staticmethod
+    def get_resolved_ids_with_suspect_value(dfq: DataFrame[QuestionFrame] | None) -> list[str]:
+        """Return resolved question IDs whose frozen value is not a resolution value.
+
+        `update()` writes `freeze_datetime_value` and the resolution file's final value from the
+        same number, so the frozen value in `dfq` identifies which resolution files are worth
+        downloading without reading any of them. Callers pass the result to
+        `load_existing_resolution_files` so `fetch` can check those files for real.
+
+        A value that will not parse is treated as suspect, so an unreadable `dfq` entry means the
+        file gets inspected rather than trusted.
+
+        Args:
+            dfq (DataFrame[QuestionFrame] | None): Existing question bank.
+        """
+        if dfq is None or dfq.empty:
+            return []
+
+        resolved = dfq.loc[dfq["resolved"]]
+        suspect_ids = []
+        for question_id, freeze_value in zip(
+            resolved["id"], resolved["freeze_datetime_value"], strict=True
+        ):
+            try:
+                is_resolution_value = float(freeze_value) in _VALID_RESOLUTION_VALUES
+            except (TypeError, ValueError):
+                is_resolution_value = False
+            if not is_resolution_value:
+                suspect_ids.append(str(question_id))
+        return suspect_ids
+
+    @staticmethod
     def _is_market_binary(market: dict) -> bool:
         """Return True if the market has exactly Yes/No outcomes."""
         return {s.lower() for s in json.loads(market["outcomes"])} == {"yes", "no"}
@@ -440,6 +482,26 @@ class PolymarketSource(MarketSource):
             events = market.get("events") or []
             end_date = events[0].get("endDate") if events else None
         return end_date or None
+
+    @staticmethod
+    def _get_market_open_date_str(market: dict) -> str:
+        """Return the market's open date as ``YYYY-MM-DD``, or ``"N/A"`` if unavailable.
+
+        Prefers the market's own ``startDateIso``, then its first event's ``startDate``, then
+        ``createdAt``. The Gamma API omits the market-level start date on some markets (e.g.
+        manually activated legs of a multi-outcome event), hence the fallbacks.
+
+        Args:
+            market (dict): Raw Gamma API market.
+        """
+        start_date = market.get("startDateIso")
+        if start_date:
+            return start_date
+        events = market.get("events") or []
+        for zulu_date in (events[0].get("startDate") if events else None, market.get("createdAt")):
+            if zulu_date:
+                return dates.convert_zulu_to_datetime(zulu_date).date().isoformat()
+        return "N/A"
 
     @staticmethod
     def _get_market_close_date(market: dict) -> date | None:
@@ -617,7 +679,7 @@ class PolymarketSource(MarketSource):
             "question": market["question"],
             "background": market["description"],
             "market_info_resolution_criteria": "N/A",
-            "market_info_open_datetime": market["startDateIso"],
+            "market_info_open_datetime": PolymarketSource._get_market_open_date_str(market),
             "market_info_close_datetime": market_closed_datetime_str,
             "url": "https://polymarket.com/market/" + market["slug"],
             "resolved": resolved,

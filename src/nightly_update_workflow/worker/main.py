@@ -4,7 +4,8 @@ import os
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
-from helpers import cloud_run, dates, question_curation  # noqa: E402
+from helpers import cloud_run, dates, env, question_curation  # noqa: E402
+from orchestration import _io  # noqa: E402
 from sources import ALL_SOURCE_NAMES, SOURCE_METADATA  # noqa: E402
 
 metadata = [
@@ -13,11 +14,23 @@ metadata = [
         ("func-metadata-validate-questions", False, cloud_run.timeout_1h, 1),
     ]
 ]
-resolve_forecasts = [
+
+
+def get_resolve_forecasts():
+    """Build the resolve_forecasts job list with one task per forecast set folder."""
+    _, date_folders = _io.get_valid_forecast_files_and_dates(bucket=env.FORECAST_SETS_BUCKET)
+    task_count = len(date_folders)
+    if task_count == 0:
+        raise ValueError("No forecast set folder found in bucket")
+    return [[("func-resolve-forecasts", True, cloud_run.timeout_1h * 3, task_count)]]
+
+
+push_datasets_to_git = [
     [
-        ("func-resolve-forecasts", True, cloud_run.timeout_1h * 3, 50),
+        ("func-push-datasets-to-git", True, cloud_run.timeout_1h, 1),
     ]
 ]
+
 leaderboards = [
     [
         ("func-leaderboard-tournament", True, cloud_run.timeout_1h * 4, 1),
@@ -135,15 +148,17 @@ def main():
 
     Env variables:
     CLOUD_RUN_TASK_INDEX: automatically set by Cloud Run Jobs
-    DICT_TO_USE: one of `fetch_and_update`, `metadata`, `resolve_forecasts`, `leaderboards`.
+    DICT_TO_USE: one of `fetch_and_update`, `metadata`, `resolve_forecasts`,
+                 `leaderboards`, `push_datasets_to_git`.
     """
     dict_mapping = {
         "fetch_and_update": get_fetch_and_update(),
         "metadata": metadata,
         "create_question_set": get_create_question_set(),
         "publish_question_set_make_llm_baseline": get_publish_question_set_make_llm_baseline(),
-        "resolve_forecasts": resolve_forecasts,
+        "resolve_forecasts": get_resolve_forecasts(),
         "leaderboards": leaderboards,
+        "push_datasets_to_git": push_datasets_to_git,
         "naive_and_dummy_forecasters": get_naive_and_dummy_forecasters(),
         "website": website,
     }

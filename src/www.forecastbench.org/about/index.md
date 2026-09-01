@@ -16,7 +16,7 @@ footer_scripts:
       <p>We use two types of binary prediction questions:
       <ul>
       <li><strong>Dataset questions</strong> are automatically generated from real-world time series (<a href="https://acleddata.com/" class="no-wrap">ACLED <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, <a href="https://db.nomics.world/" class="no-wrap">DBnomics <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, <a href="https://fred.stlouisfed.org/" class="no-wrap">FRED <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, <a href="https://finance.yahoo.com/" class="no-wrap">Yahoo! Finance <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, and <a href="https://www.wikipedia.org/" class="no-wrap">Wikipedia <i class="fa-solid fa-arrow-up-right-from-square"></i></a>) using pre-specified templates. Each dataset question generates multiple forecasts at different time horizons, since we ask the same question with 8 different resolution dates, ranging from 7 days to 10 years out.</li>
-      <li><strong>Market questions</strong> are drawn from leading prediction platforms: <a href="https://manifold.markets/" class="no-wrap">Manifold <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, <a href="https://www.metaculus.com/" class="no-wrap">Metaculus <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, and <a href="https://polymarket.com/" class="no-wrap">Polymarket <i class="fa-solid fa-arrow-up-right-from-square"></i></a>.</li>
+      <li><strong>Market questions</strong> are drawn from leading prediction platforms: <a href="https://kalshi.com/" class="no-wrap">Kalshi <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, <a href="https://manifold.markets/" class="no-wrap">Manifold <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, <a href="https://www.metaculus.com/" class="no-wrap">Metaculus <i class="fa-solid fa-arrow-up-right-from-square"></i></a>, and <a href="https://polymarket.com/" class="no-wrap">Polymarket <i class="fa-solid fa-arrow-up-right-from-square"></i></a>.</li>
       </ul>
       </p>
       <p>ForecastBench operates as a <a href="/docs/#architecture">fully automated, dynamic system</a>. New forecasting rounds occur every two weeks, with each round generating 500 questions split evenly between market and dataset questions. The leaderboard is updated nightly as new data becomes available and market questions resolve over time, allowing us to continuously track forecasting performance.</p>
@@ -30,6 +30,10 @@ footer_scripts:
   <div class="site-feature-row__content">
     <div class="site-feature-row__left-2">
       <h1 id="blog-title" class="site-feature-row__title" data-section-link>Blog</h1>
+      <div class="blog-entry">
+        <a href="https://forecastingresearch.substack.com/p/ai-models-have-likely-reached-parity" class="blog-entry__title">AI models have likely reached parity with superforecasters on ForecastBench <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+        <p class="blog-entry__meta"><span class="blog-date">2026-07-16</span> · New results from the ForecastBench leaderboard suggest the gap between frontier AI and elite human forecasters is closing.</p>
+      </div>
       <div class="blog-entry">
         <a href="https://forecastingresearch.substack.com/p/introducing-the-brier-index" class="blog-entry__title">Making Forecasting Scores Easier to Interpret: Introducing the Brier Index <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
         <p class="blog-entry__meta"><span class="blog-date">2026-03-04</span> · A simple transformation that makes the Brier score intuitive.</p>

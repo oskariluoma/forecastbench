@@ -8,7 +8,9 @@ import pandas as pd
 import pytest
 
 from sources.acled import AcledSource
+from sources.dbnomics import DbnomicsSource
 from sources.fred import FredSource
+from sources.kalshi import KalshiSource
 from sources.manifold import ManifoldSource
 from sources.metaculus import MetaculusSource
 from sources.polymarket import PolymarketSource
@@ -86,6 +88,12 @@ def metaculus_source():
 
 
 @pytest.fixture()
+def kalshi_source():
+    """Return a KalshiSource instance."""
+    return KalshiSource()
+
+
+@pytest.fixture()
 def polymarket_source():
     """Return a PolymarketSource instance."""
     return PolymarketSource()
@@ -95,6 +103,12 @@ def polymarket_source():
 def yfinance_source():
     """Return a YfinanceSource instance."""
     return YfinanceSource()
+
+
+@pytest.fixture()
+def dbnomics_source():
+    """Return a DbnomicsSource instance."""
+    return DbnomicsSource()
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +362,79 @@ def make_metaculus_fetch_df(ids):
 
 
 # ---------------------------------------------------------------------------
+# Kalshi-specific factories
+# ---------------------------------------------------------------------------
+
+
+def make_kalshi_api_market(**overrides):
+    """Build a realistic Kalshi market dict as returned by /markets/{ticker}."""
+    base = {
+        "ticker": "KXTEST-001",
+        "event_ticker": "KXTEST",
+        "title": "Will X happen by 2026?",
+        "yes_sub_title": "X happens",
+        "market_type": "binary",
+        "open_time": "2025-06-01T00:00:00Z",
+        "occurrence_datetime": "2026-12-01T00:00:00Z",
+        "close_time": "2026-12-01T00:00:00Z",
+        "status": "active",
+        "result": "",
+        "volume_fp": "10000.00",
+        "volume_24h_fp": "500.00",
+        "open_interest_fp": "2000.00",
+        "rules_primary": "Resolves Yes if X happens.",
+        "rules_secondary": "",
+        "settlement_ts": None,
+        "expected_expiration_time": "2026-12-01T00:00:00Z",
+        "latest_expiration_time": "2026-12-08T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
+def make_kalshi_event(markets=None, category="Economics", **overrides):
+    """Build a Kalshi event dict with nested markets as returned by /events."""
+    base = {
+        "event_ticker": "KXTEST",
+        "series_ticker": "KXTEST",
+        "category": category,
+        "title": "Test event",
+        "settlement_sources": [],
+        "markets": markets if markets is not None else [make_kalshi_api_market()],
+    }
+    base.update(overrides)
+    return base
+
+
+def make_kalshi_candlestick(end_period_ts, close_dollars=None, **overrides):
+    """Build a candlestick dict as returned by the candlesticks endpoint.
+
+    ``price`` is empty ({}) when no trade occurred during the period, matching the API.
+    """
+    price = {} if close_dollars is None else {"close_dollars": str(close_dollars)}
+    base = {
+        "end_period_ts": end_period_ts,
+        "price": price,
+        "volume_fp": "100.00",
+        "open_interest_fp": "500.00",
+    }
+    base.update(overrides)
+    return base
+
+
+def make_kalshi_fetch_df(rows):
+    """Build a DataFrame matching KalshiFetchFrame schema."""
+    defaults = dict(
+        event_ticker="KXTEST",
+        needs_yes_label=False,
+        series_ticker="KXTEST",
+        settlement_sources=[],
+    )
+    records = [{**defaults, **row} for row in rows]
+    return pd.DataFrame(records, columns=["id", *defaults])
+
+
+# ---------------------------------------------------------------------------
 # Polymarket-specific factories
 # ---------------------------------------------------------------------------
 
@@ -411,4 +498,165 @@ def make_polymarket_fetch_df(rows):
     for col, default in defaults.items():
         if col not in df.columns:
             df[col] = default
+    return df
+
+
+# ---------------------------------------------------------------------------
+# DBnomics-specific factories
+# ---------------------------------------------------------------------------
+
+
+def make_dbnomics_api_response(
+    period_values,
+    provider_name="MeteoFrance",
+    dataset_name="Temperature",
+    series_name="Abbeville",
+):
+    """Build a DBnomics ``/series`` API response dict.
+
+    Args:
+        period_values (list): List of (period_str, value) tuples; value is a float or "NA".
+        provider_name (str): Provider name returned under provider.name.
+        dataset_name (str): Dataset name on the series doc.
+        series_name (str): Series name on the series doc.
+    """
+    periods = [p for p, _ in period_values]
+    values = [v for _, v in period_values]
+    return {
+        "provider": {"name": provider_name},
+        "series": {
+            "docs": [
+                {
+                    "period": periods,
+                    "value": values,
+                    "dataset_name": dataset_name,
+                    "series_name": series_name,
+                }
+            ]
+        },
+    }
+
+
+def make_dbnomics_fetch_df(rows):
+    """Build a DataFrame matching DbnomicsFetchFrame (one row per observation).
+
+    Each row should have at least 'id', 'period', 'value'. Missing columns get defaults.
+    """
+    defaults = {
+        "provider_name": "MeteoFrance",
+        "dataset_name": "Temperature",
+        "series_name": "Abbeville",
+    }
+    df = pd.DataFrame(rows)
+    for col, default in defaults.items():
+        if col not in df.columns:
+            df[col] = default
+    return df
+
+
+# ---------------------------------------------------------------------------
+# FRED-specific fixtures and factories
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def fred_source():
+    """Return a FredSource instance with a fake API key."""
+    src = FredSource()
+    src.api_key = "test-key"
+    return src
+
+
+def make_fred_api_release(**overrides):
+    """Build a realistic FRED release API response dict."""
+    base = {
+        "id": 18,
+        "realtime_start": "2026-03-18",
+        "realtime_end": "2026-03-18",
+        "name": "H.15 Selected Interest Rates",
+        "press_release": True,
+        "link": "http://www.federalreserve.gov/releases/h15/",
+        "notes": "For questions on the data, please contact the data source.",
+    }
+    base.update(overrides)
+    return base
+
+
+def make_fred_api_series(**overrides):
+    """Build a realistic FRED series API response dict."""
+    base = {
+        "id": "DGS10",
+        "title": "Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity",
+        "observation_start": "1962-01-02",
+        "observation_end": "2026-03-16",
+        "frequency": "Daily",
+        "frequency_short": "D",
+        "units": "Percent",
+        "units_short": "%",
+        "seasonal_adjustment": "Not Seasonally Adjusted",
+        "seasonal_adjustment_short": "NSA",
+        "last_updated": "2026-03-17 15:16:44-05",
+        "popularity": 98,
+        "notes": "H.15 Statistical Release.",
+    }
+    base.update(overrides)
+    return base
+
+
+def make_fred_api_observations(series_id="DGS10", date_values=None):
+    """Build a list of FRED observation dicts.
+
+    Args:
+        series_id (str): The series ID for the id field.
+        date_values (list): List of (date_str, value_str) tuples.
+    """
+    if date_values is None:
+        date_values = [
+            ("2026-03-14", "4.25"),
+            ("2026-03-15", "."),
+            ("2026-03-16", "4.30"),
+        ]
+    return [
+        {
+            "realtime_start": "2026-03-18",
+            "realtime_end": "2026-03-18",
+            "date": d,
+            "value": v,
+        }
+        for d, v in date_values
+    ]
+
+
+def make_fred_fetch_df(rows):
+    """Build a DataFrame matching FredFetchFrame schema.
+
+    Each row should have at least 'id'. Missing columns get defaults.
+    """
+    defaults = {
+        "question": (
+            "Will X have increased by {resolution_date} as compared to "
+            "its value on {forecast_due_date}?"
+        ),
+        "background": "N/A",
+        "url": "https://fred.stlouisfed.org/series/DGS10",
+        "resolved": False,
+        "forecast_horizons": [7, 30, 90, 180, 365, 1095, 1825, 3650],
+        "freeze_datetime_value": 4.30,
+        "freeze_datetime_value_explanation": "The latest value released in X from the release Y.",
+        "market_info_resolution_criteria": "N/A",
+        "market_info_open_datetime": "N/A",
+        "market_info_close_datetime": "N/A",
+        "market_info_resolution_datetime": "N/A",
+        "fetch_datetime": "2026-03-18T00:00:00+00:00",
+        "probability": 4.30,
+        "resolutions": [
+            {"id": "DGS10", "date": "2026-03-14", "value": 4.25},
+            {"id": "DGS10", "date": "2026-03-15", "value": 4.25},
+            {"id": "DGS10", "date": "2026-03-16", "value": 4.30},
+        ],
+    }
+    df = pd.DataFrame(rows)
+    for col, default in defaults.items():
+        if col not in df.columns:
+            df[col] = [default] * len(df) if isinstance(default, list) else default
     return df
